@@ -1,73 +1,87 @@
 import psycopg2
 
-with psycopg2.connect(database="dbhomework5", user="postgres", password="Adminik") as conn:
-    with conn.cursor() as cur:
+def create_tables(cur):
     # удаление таблиц
-        cur.execute("""
+    cur.execute("""
         DROP TABLE IF EXISTS phones;
         DROP TABLE IF EXISTS clients;
-        """)    
+    """)    
     
     # создание таблиц
-        cur.execute("""
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS clients(
-            client_id SERIAL PRIMARY KEY,
-            firstname VARCHAR(40) NOT NULL,
-            name VARCHAR(40) NOT NULL,
-            e_mail VARCHAR(40) NOT NULL
+        client_id SERIAL PRIMARY KEY,
+        firstname VARCHAR(40) NOT NULL,
+        name VARCHAR(40) NOT NULL,
+        e_mail VARCHAR(40) UNIQUE NOT NULL 
         );
-        """)
-        cur.execute("""
+    """)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS phones(
-            phone_id SERIAL PRIMARY KEY,
-            number VARCHAR(20) UNIQUE,
-            client_id INTEGER NOT NULL REFERENCES clients(client_id)
+        phone_id SERIAL PRIMARY KEY,
+        number VARCHAR(20) UNIQUE NOT NULL,
+        client_id INTEGER NOT NULL REFERENCES clients(client_id)
         );
-        """)
-        conn.commit() #фиксирует изменения в бд
+    """)
+    conn.commit()
 
-    # наполнение таблиц (C из CRUD)
-        cur.execute(""" INSERT INTO clients(client_id, firstname, name, e_mail) VALUES (1, 'Петров', 'Олег', 'petrov@mail.ru')
-        """)
+def add_person (firstname, name, e_mail, num_phones):
+    cur.execute("""
+        INSERT INTO clients(firstname, name, e_mail) VALUES(%s, %s, %s);
+        """, (firstname, name, e_mail))
     
-        cur.execute(""" INSERT INTO clients(client_id, firstname, name, e_mail) VALUES (2, 'Сомова', 'Алина', 'somova@mail.ru')
-        """)
-        
+    cur.execute("""
+        SELECT client_id FROM clients WHERE firstname=%s AND name =%s;
+        """, (firstname, name)) 
+    client_id = cur.fetchone()[0]
+    print(client_id)
+    
+    for phone in num_phones:
         cur.execute("""
-        SELECT * FROM clients;
-        """)
-        print('fetchall', cur.fetchall())  
-        # cur.execute("""
-        # INSERT INTO homework(number, description, course_id) VALUES(1, 'простое дз', 1);
-        # """)
-        # conn.commit()  # фиксируем в БД
+            INSERT INTO phones(number, client_id) VALUES(%s, %s);
+            """, (phone, client_id))
 
-        # # извлечение данных (R из CRUD)
-        # cur.execute("""
-        # SELECT * FROM course;
-        # """)
-        # print('fetchall', cur.fetchall())  # извлечь все строки
+        cur.execute("""
+            SELECT * FROM clients;
+            """)
+        print(cur.fetchall())
+        cur.execute("""
+            SELECT * FROM phones;
+            """)
+        print(cur.fetchall())
+    conn.commit()  # фиксируем в БД    
 
-        # cur.execute("""
-        # SELECT * FROM course;
-        # """)
-        # print(cur.fetchone())  # извлечь первую строку (аналог LIMIT 1)
+def line(n=10):
+    print('---'*n)
 
-        # #Правильный способ поиска значения с использованием sql-запроса (во избежание sql-инъекций)
-        # cur.execute("""
-        # SELECT id FROM course WHERE name=%s;
-        # """, ("Python",))  # правильно, обратите внимание на кортеж
-        # print(cur.fetchone())
-
-        # def get_course_id(cursor, name: str) -> int:
-        #     cursor.execute("""
-        #     SELECT id FROM course WHERE name=%s;
-        #     """, (name,))
-        #     return cur.fetchone()[0]
-        # python_id = get_course_id(cur, 'Python')
-        # print('python_id', python_id)
-
-
-
-
-conn.close()
+if __name__ == "__main__":
+ while True:
+    
+    with psycopg2.connect(database="dbhomework5", user="postgres", password="Adminik") as conn:
+        with conn.cursor() as cur:   
+            create_tables(cur)
+            user_comand = input('Введите команду:\n 1 - добавить нового клиента\n 2 - добавить телефон для существующего клиента\n 3 - изменить данные о клиенте\n 4 - удалить телефон для существующего клиента\n 5 - найти клиента по его данным (имени, фамилии, email или телефону)\n - - - - - - - \n q - выход\n')
+            if user_comand == '1':
+                line()
+                print('Введите данные по клиенту: ')
+                name = input('Имя - ')
+                firstname = input('Фамилия - ')
+                email = input('email - ')
+                q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
+                phone = []
+                for i in range(q_phone):
+                    input_phone = input('Введите номер')
+                    phone.append(input_phone)
+                add_person (firstname, name, email, phone)
+                print(f'Клиент {firstname} {name} добавлен') 
+                line()
+            elif user_comand == '2':
+                line()
+                add_person('Сомов','Михаил', 'somov@mail.ru', '8-914-900-45-57')
+                add_person('Ермаков','Михаил', 'ermakov@mail.ru', '8-914-900-75-50')
+                add_person('Соколова','Аня', 'sokolova@mail.ru', '8-914-900-05-59')
+            elif user_comand == 'q':
+                print('До свидания!')
+                break
+            else:
+                print('Такой команды нет, попробуйте еще раз!')
