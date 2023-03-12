@@ -41,29 +41,67 @@ def add_person (cur, firstname, name, e_mail, numbs_phone = None):
 
     
     
-def get_client_id(cur, firstname, name = None):
-    #with conn.cursor() as cur:
-    if name == None:
-        cur.execute("""
-            SELECT client_id FROM clients WHERE firstname = %s;
-            """, (firstname))
-        client_id = cur.fetchall()
-        if len(client_id) > 1:
-            error_msg = 'В БД есть однофамильцы, уточните имя клиента и повторите запрос'
-            return error_msg
-           
+def get_client_id(cur, firstname = None, name = None, email = None):
+    if firstname == ' ' or firstname == '':
+        firstname = None
+    if name == ' ' or name == '':
+        name = None
+    if email == ' ' or email == '':
+        email = None    
+
+    if email is None:
+        if firstname is None:
+            if name is None:
+                print(f'Нет данных для поиска')
+                client_id = None
+            else:
+                #email = None, firstname = None, name <> None
+                cur.execute("""
+                   SELECT client_id FROM clients WHERE name = %s;
+                """, (name,))
+                rez = cur.fetchall()
+                #print(f'Результат поиска по имени {rez}')
+        else:
+            #email = None, firstname <> None
+            if name is None:
+                cur.execute("""
+                SELECT client_id FROM clients WHERE firstname = %s;
+                """, (firstname,))
+                rez = cur.fetchall()
+                #print(f'Результат поиска по фамили {rez}')
+            else:
+                #email = None, firstname <> None, name <> None
+                cur.execute("""
+                SELECT client_id FROM clients WHERE firstname = %s and name = %s;
+                """, (firstname, name))
+                rez = cur.fetchall()
+                #print(f'Результат поиска по имени и фамили {rez}')
     else:
-        cur.execute("""
-            SELECT client_id FROM clients WHERE firstname = %s AND name = %s;
-            """, (firstname, name)) 
-    client_id = cur.fetchone()[0]
-    if client_id is None:
-            error_msg = 'Такого клиента нет в БД'
-            return error_msg
-    print(f'client_id {client_id}')
+        #email <> None
+        #email поле с уникальными значениями, поэтому, если он указан можно искать исключительно по нему
+        cur.execute("""SELECT * FROM clients WHERE e_mail = %s;
+            """, (email,))
+        rez = cur.fetchall()
+        #print(f'Результат поиска по email {rez}')
+        if len(rez)==1 and firstname is not None and firstname != str(rez[0][1]):
+           print(f'ВНИМАНИЕ! Данные по фамилии {firstname}/{rez[0][1]} не соответствуют записи найденной по email: {email}')
+        if len(rez)==1 and name is not None and name != rez[0][2]:
+           print(f'ВНИМАНИЕ! Данные по имени {name}/{rez[0][2]} не соответствуют записи найденной по email: {email}')
+
+    #обработка результатов запроса
+    line()
+    if len(rez) == 1:
+        #print('Найдено одно совпадение: ', rez)
+        client_id = rez[0][0]    
+    elif len(rez) > 1:
+        print('Найдено несколько совпадений. Не достаточно данных. Повторите попытку')
+        client_id = None
+    else:
+        print('Клиент не найден в базе данных')
+        client_id = None
+
     return client_id
-    
-   
+                
     
 def add_phones_by_id(cur, client_id, numbs_phone):
     #with conn.cursor() as cur:    
@@ -81,6 +119,32 @@ def update_client_info():
 def find_person_by_info(cur, firstname = None, name = None, email = None):
     pass
 
+def del_client(cur, client_id):
+    cur.execute("""
+        DELETE FROM phones WHERE client_id=%s;
+        """, (client_id,))
+    
+    cur.execute("""
+        DELETE FROM clients WHERE client_id=%s;
+        """, (client_id,))
+        
+    print(f'Клиент id {client_id} удален из базы данных')
+
+
+def del_phone_by_number(cur, number):
+    #number - поле с уникальными значениями
+    
+    cur.execute("""
+        SELECT number FROM phones WHERE number=%s;
+        """, (number,))
+    find_phone = cur.fetchall()
+    if len(find_phone) == 1:
+        cur.execute("""
+            DELETE FROM phones WHERE number=%s;
+            """, (number,))
+        print(f'Телефон {number} удален из базы данных')
+    else:
+        print(f'Телефон {number} не найден в базе данных')
 
 def all_clients(conn): 
     cur.execute("""
@@ -110,12 +174,18 @@ if __name__ == "__main__":
                     firstname = (input('Фамилия: ')).title()
                     name = (input('Имя: ')).title()
                     email = (input('email: ')).lower()
-                    q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
-                    phones = []
-                    for i in range(q_phone):
-                        input_phone = input('Введите номер: ')
-                        phones.append(input_phone)
-                    add_person (cur, firstname, name, email, phones)
+                    if firstname == '' or name == '' or email == '':
+                        print('Добавление клиента не возможно. Все значения должны быть заполнены')
+                    else:
+                        if get_client_id(cur, firstname, name, email) is None:
+                            q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
+                            phones = []
+                            for i in range(q_phone):
+                                input_phone = input('Введите номер: ')
+                                phones.append(input_phone)
+                            add_person (cur, firstname, name, email, phones)
+                        else:
+                            print('Такой клиент уже есть в базе данных')
                     line()
                 elif user_comand == '3':
                     line()
@@ -123,38 +193,51 @@ if __name__ == "__main__":
                     print('Для добавления телефона укажите')
                     f_firstname = (input('Фамилия: ')).title()
                     f_name = (input('Имя: ')).title()
-                    cur.execute("""SELECT * FROM clients WHERE firstname = %s and name = %s;
-                        """, (f_firstname, f_name))
-                    rez = cur.fetchall()
-                    print(f'Результат поиска по фамилии и имени: {rez} len {len(rez)} id {rez[0][0]}')
-                    if len(rez) == 1:
+                    client_id = get_client_id(cur, f_firstname, f_name)
+                    if client_id != None:
                         q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
                         for i in range(q_phone):
                             input_phone = input('Введите номер: ')
                             phones.append(input_phone)
-                        add_phones_by_id(cur, rez[0][0], phones)
-                    elif len(rez) == 0:
-                        print('В БД нет такого клиента')
+                            add_phones_by_id(cur, client_id, phones)
                     else:
-                        email = (input('В БД данных есть несколько клиентов с такими данными, введите email: ')).lower()
-                        cur.execute("""SELECT * FROM clients WHERE e_mail = %s;
-                        """, (email,))
-                        rez = cur.fetchall()
-                        print(f'Результат поиска по email {rez}')
-                        if len(rez) == 1:
-                            q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
-                            for i in range(q_phone):
-                                input_phone = input('Введите номер: ')
-                                phones.append(input_phone)
-                                add_phones_by_id(cur, rez[0][0], phones)
-                        else:
-                            print('Клиента с таким email в БД нет')
+                        print('Добавление телефона невозможно. Повторите попытку.')
+                    line()
+                elif user_comand == '5':
+                    line()
+                    phone = input('Для удаления укажите номер телефона: ')
+                        
+                    del_phone_by_number(cur, phone)
+                    line()
+                elif user_comand == '6':
+                    line()
+                    print('Для удаления укажите')
+                    f_firstname = (input('Фамилия: ')).title()
+                    f_name = (input('Имя: ')).title()
+                    f_email = (input('email: ')).lower()
+                    client_id = get_client_id(cur, f_firstname, f_name, f_email)
+                    if client_id is not None:
+                        del_client(cur, client_id)
+                    line()
+                elif user_comand == '7':
+                    line()
+                    print('Для поиска укажите')
+                    f_firstname = (input('Фамилия: ')).title()
+                    f_name = (input('Имя: ')).title()
+                    f_email = (input('email: ')).lower()
+                    client_id = get_client_id(cur, f_firstname, f_name, f_email) 
+                    if client_id is not None:
+                        print(f'Клиент найден: client_id = {client_id}')
+                    line()
                 elif user_comand == '8':
                     line()
                     all_clients(cur)
+                    line()
                 elif user_comand == 'q':
                     conn.close()
                     print('До свидания!')
                     break
                 else:
+                    line()
                     print('Такой команды нет, попробуйте еще раз!')
+                    line()
