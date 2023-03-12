@@ -71,18 +71,18 @@ def add_phones_by_id(cur, client_id, numbs_phone):
         cur.execute("""
             INSERT INTO phones(number, client_id) VALUES(%s, %s);
             """, (phone, client_id))
-        
-        #client_phones = cur.fetchall()
     conn.commit()
     print(f'Телефоны {numbs_phone} добавлены')
     return cur
 
 def update_client_info():
-  pass
-   
+    pass
+
+def find_person_by_info(cur, firstname = None, name = None, email = None):
+    pass
+
 
 def all_clients(conn): 
-    #with conn.cursor() as cur:
     cur.execute("""
         SELECT * FROM clients;
         """)
@@ -101,15 +101,15 @@ if __name__ == "__main__":
     while True:
         with psycopg2.connect(database="dbhomework5", user="postgres", password="Adminik") as conn:
             with conn.cursor() as cur:   
-                user_comand = input('Введите команду:\n 1 - создать новую БД\n 2 - добавить нового клиента\n 3 - добавить телефон для существующего клиента\n 4 - изменить данные о клиенте\n 5 - удалить телефон для существующего клиента\n 6 - найти клиента по его данным (имени, фамилии, email или телефону)\n 7 - просмотеть данные по всем клиентам\n - - - - - - - \n q - выход\n')
+                user_comand = input('Введите команду:\n 1 - создать новую БД\n 2 - добавить нового клиента\n 3 - добавить телефон для существующего клиента\n 4 - изменить данные о клиенте\n 5 - удалить телефон для существующего клиента\n 6 - удалить существующего клиента\n 7 - найти клиента по его данным (имени, фамилии, email или телефону)\n 8 - просмотеть данные по всем клиентам\n - - - - - - - \n q - выход\n')
                 if user_comand == '1':
                     create_tables(cur)
                 elif user_comand == '2':
                     line()
                     print('Введите данные по клиенту ')
-                    name = input('Имя: ')
-                    firstname = input('Фамилия: ')
-                    email = input('email: ')
+                    firstname = (input('Фамилия: ')).title()
+                    name = (input('Имя: ')).title()
+                    email = (input('email: ')).lower()
                     q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
                     phones = []
                     for i in range(q_phone):
@@ -119,17 +119,37 @@ if __name__ == "__main__":
                     line()
                 elif user_comand == '3':
                     line()
-                    
                     phones = []
                     print('Для добавления телефона укажите')
-                    f_name = input('Имя: ')
-                    f_firstname = input('Фамилия:')
-                    q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
-                    for i in range(q_phone):
-                        input_phone = input('Введите номер: ')
-                        phones.append(input_phone)
-                    add_phones_by_id(cur, get_client_id(cur, f_firstname, f_name), phones)
-                elif user_comand == '7':
+                    f_firstname = (input('Фамилия: ')).title()
+                    f_name = (input('Имя: ')).title()
+                    cur.execute("""SELECT * FROM clients WHERE firstname = %s and name = %s;
+                        """, (f_firstname, f_name))
+                    rez = cur.fetchall()
+                    print(f'Результат поиска по фамилии и имени: {rez} len {len(rez)} id {rez[0][0]}')
+                    if len(rez) == 1:
+                        q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
+                        for i in range(q_phone):
+                            input_phone = input('Введите номер: ')
+                            phones.append(input_phone)
+                        add_phones_by_id(cur, rez[0][0], phones)
+                    elif len(rez) == 0:
+                        print('В БД нет такого клиента')
+                    else:
+                        email = (input('В БД данных есть несколько клиентов с такими данными, введите email: ')).lower()
+                        cur.execute("""SELECT * FROM clients WHERE e_mail = %s;
+                        """, (email,))
+                        rez = cur.fetchall()
+                        print(f'Результат поиска по email {rez}')
+                        if len(rez) == 1:
+                            q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
+                            for i in range(q_phone):
+                                input_phone = input('Введите номер: ')
+                                phones.append(input_phone)
+                                add_phones_by_id(cur, rez[0][0], phones)
+                        else:
+                            print('Клиента с таким email в БД нет')
+                elif user_comand == '8':
                     line()
                     all_clients(cur)
                 elif user_comand == 'q':
