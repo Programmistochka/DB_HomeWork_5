@@ -2,6 +2,7 @@
 import psycopg2
 
 def create_tables(cur):
+    """Создание новой базы данных"""
     # удаление таблиц
     cur.execute("""
         DROP TABLE IF EXISTS phones;
@@ -29,7 +30,7 @@ def create_tables(cur):
     all_clients(cur)
 
 def add_person (cur, firstname, name, e_mail, numbs_phone = None):
-    #with conn.cursor() as cur:
+    """Добавление новых клиентов в базу данных в таблицу clients"""
     cur.execute("""
         INSERT INTO clients(firstname, name, e_mail) VALUES(%s, %s, %s);
         """, (firstname, name, e_mail))
@@ -42,6 +43,7 @@ def add_person (cur, firstname, name, e_mail, numbs_phone = None):
     
     
 def get_client_id(cur, firstname = None, name = None, email = None):
+    """Получение client_id по персональным данным клиента"""
     if firstname == ' ' or firstname == '':
         firstname = None
     if name == ' ' or name == '':
@@ -104,7 +106,7 @@ def get_client_id(cur, firstname = None, name = None, email = None):
                 
     
 def add_phones_by_id(cur, client_id, numbs_phone):
-    #with conn.cursor() as cur:    
+    """Добавление телефонов для клиента с определенным client_id"""    
     for phone in numbs_phone:
         cur.execute("""
             INSERT INTO phones(number, client_id) VALUES(%s, %s);
@@ -113,13 +115,26 @@ def add_phones_by_id(cur, client_id, numbs_phone):
     print(f'Телефоны {numbs_phone} добавлены')
     return cur
 
-def update_client_info():
-    pass
+def update_client_info(cur, client_id, num_point, new_value):
+    """Обновление данных в выбранном поле""" 
+    if point == 'firstname':
+        cur.execute("""
+            UPDATE clients SET firstname=%s WHERE client_id=%s;
+            """, (new_value, client_id))       
+    elif point == 'name':
+        cur.execute("""
+            UPDATE clients SET name=%s WHERE client_id=%s;
+            """, (new_value, client_id))
+    elif point == 'email':
+        cur.execute("""
+            UPDATE clients SET e_mail=%s WHERE client_id=%s;
+            """, (new_value, client_id))
+    conn.commit()
+    print('Данные изменены')
 
-def find_person_by_info(cur, firstname = None, name = None, email = None):
-    pass
 
 def del_client(cur, client_id):
+    """Удаление всей информации по клиенту из базы данных с определенным client_id"""
     cur.execute("""
         DELETE FROM phones WHERE client_id=%s;
         """, (client_id,))
@@ -130,32 +145,31 @@ def del_client(cur, client_id):
         
     print(f'Клиент id {client_id} удален из базы данных')
 
-def find_client_info_by_number(cur, phone): 
-    cur.execute(""" 
-        SELECT * FROM phones WHERE number=%s;
-        """, (phone,))
-    rez = cur.fetchall()
+def find_client_info_by_number(cur, phone):
+    """Поиск информации о клиенте по номеру телефона"""    
+    rez = find_phone(cur, phone)
     if len(rez) == 1:
         client_id = rez[0][2]
-        cur.execute(""" 
-            SELECT * FROM clients WHERE client_id=%s;
-            """, (client_id,))
-        info = cur.fetchone()
+        info = client_info_by_id(cur, client_id)
         client_info = {'client_id' : client_id, 'firstname' : info[1], 'name' : info[2], 'email': info[3]}
         return client_info
     else:
         print(f'Телефон {phone} не найден')
 
-
+def find_phone(cur, phone):
+    """Поиск записи в таблице phones по номеру телефона"""
+    cur.execute(""" 
+        SELECT * FROM phones WHERE number=%s;
+        """, (phone,))
+    rez = cur.fetchall()
+    return rez
 
 def del_phone_by_number(cur, number):
+    """Удаление телефона по номеру"""
     #number - поле с уникальными значениями
     
-    cur.execute("""
-        SELECT number FROM phones WHERE number=%s;
-        """, (number,))
-    find_phone = cur.fetchall()
-    if len(find_phone) == 1:
+    rez = find_phone(cur, phone)
+    if len(rez) == 1:
         cur.execute("""
             DELETE FROM phones WHERE number=%s;
             """, (number,))
@@ -163,7 +177,14 @@ def del_phone_by_number(cur, number):
     else:
         print(f'Телефон {number} не найден в базе данных')
 
-def all_clients(conn): 
+def client_info_by_id(cur, client_id):
+    cur.execute(""" 
+        SELECT * FROM clients WHERE client_id=%s;
+        """, (client_id,))
+    return cur.fetchone()
+
+def all_clients(conn):
+    """Вывод информации по всем клиентам""" 
     cur.execute("""
         SELECT * FROM clients;
         """)
@@ -215,11 +236,39 @@ if __name__ == "__main__":
                         q_phone = int(input('Сколько номеров телефонов хотите добавить: '))
                         for i in range(q_phone):
                             input_phone = input('Введите номер: ')
-                            phones.append(input_phone)
-                            add_phones_by_id(cur, client_id, phones)
+                            rez = find_phone(cur, input_phone)
+                            if  len(rez) == 0:
+                                phones.append(input_phone)
+                                add_phones_by_id(cur, client_id, phones)
+                            else:
+                                print('Такой телефон уже есть в базе')
+                                break
                     else:
                         print('Добавление телефона невозможно. Повторите попытку.')
                     line()
+                elif user_comand == '4':
+                    line()
+                    print('Введите данные по клиенту ')
+                    firstname = (input('Фамилия: ')).title()
+                    name = (input('Имя: ')).title()
+                    email = (input('email: ')).lower()
+                    client_id = get_client_id(cur, firstname, name, email)
+                    if client_id != None:
+                        point_num = input('Укажите, что необходимо обновить: 1 - фамилия, 2 - имя, 3 - email\n')
+                        if point_num == '1': 
+                            point = 'firstname' 
+                        elif point_num == '2':
+                            point = 'name'
+                        elif point_num =='3':
+                            point = 'email'
+                        else:
+                            point = None
+                            print('Вид данных выбран не верно')
+                        if point != None:
+                            new_value = input('Введите новое значение: ')
+                            update_client_info(cur, client_id, point, new_value)
+                    else:
+                        print('Данные указаны не верно. Клиент не найден')
                 elif user_comand == '5':
                     line()
                     phone = input('Для удаления укажите номер телефона: ')
@@ -247,6 +296,7 @@ if __name__ == "__main__":
                         client_id = get_client_id(cur, f_firstname, f_name, f_email) 
                         if client_id is not None:
                             print(f'Клиент найден: client_id = {client_id}')
+                            print(client_info_by_id(cur, client_id))
                     elif user_comand_2 == '2':
                         phone = input('Укажите номер телефона: ')
                         print(find_client_info_by_number(cur, phone))
