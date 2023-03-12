@@ -130,6 +130,23 @@ def del_client(cur, client_id):
         
     print(f'Клиент id {client_id} удален из базы данных')
 
+def find_client_info_by_number(cur, phone): 
+    cur.execute(""" 
+        SELECT * FROM phones WHERE number=%s;
+        """, (phone,))
+    rez = cur.fetchall()
+    if len(rez) == 1:
+        client_id = rez[0][2]
+        cur.execute(""" 
+            SELECT * FROM clients WHERE client_id=%s;
+            """, (client_id,))
+        info = cur.fetchone()
+        client_info = {'client_id' : client_id, 'firstname' : info[1], 'name' : info[2], 'email': info[3]}
+        return client_info
+    else:
+        print(f'Телефон {phone} не найден')
+
+
 
 def del_phone_by_number(cur, number):
     #number - поле с уникальными значениями
@@ -221,14 +238,21 @@ if __name__ == "__main__":
                     line()
                 elif user_comand == '7':
                     line()
-                    print('Для поиска укажите')
-                    f_firstname = (input('Фамилия: ')).title()
-                    f_name = (input('Имя: ')).title()
-                    f_email = (input('email: ')).lower()
-                    client_id = get_client_id(cur, f_firstname, f_name, f_email) 
-                    if client_id is not None:
-                        print(f'Клиент найден: client_id = {client_id}')
-                    line()
+                    user_comand_2 = input('Выбор вида поиска: 1 - по персональным данным\n 2 - по телефону\n')
+                    if user_comand_2 == '1':
+                        print('Для поиска укажите')
+                        f_firstname = (input('Фамилия: ')).title()
+                        f_name = (input('Имя: ')).title()
+                        f_email = (input('email: ')).lower()
+                        client_id = get_client_id(cur, f_firstname, f_name, f_email) 
+                        if client_id is not None:
+                            print(f'Клиент найден: client_id = {client_id}')
+                    elif user_comand_2 == '2':
+                        phone = input('Укажите номер телефона: ')
+                        print(find_client_info_by_number(cur, phone))
+                    else:
+                        print('Вид указан не верно. Поиск отменен')
+                    line()    
                 elif user_comand == '8':
                     line()
                     all_clients(cur)
